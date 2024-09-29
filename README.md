@@ -1,45 +1,12 @@
 [![Continuous Integration](https://github.com/kaiosilveira/remove-flag-argument-refactoring/actions/workflows/ci.yml/badge.svg)](https://github.com/kaiosilveira/remove-flag-argument-refactoring/actions/workflows/ci.yml)
 
-# Refactoring catalog repository template
-
-This is a quick template to help me get a new refactoring repo going.
-
-## Things to do after creating a repo off of this template
-
-1. Run `yarn tools:cli prepare-repository -r <repo_name>`. It will:
-
-- Update the `README.md` file with the actual repository name, CI badge, and commit history link
-- Update `package.json` with the repository's name and remote URL
-- Update the repo's homepage on GitHub with:
-  - A description
-  - A website link to https://github.com/kaiosilveira/refactoring
-  - The following labels: javascript, refactoring, remove-flag-argument-refactoring
-
-2. Replace the lorem ipsum text sections below with actual text
-
-## Useful commands
-
-- Generate markdown containing a diff with patch information based on a range of commits:
-
-```bash
-yarn tools:cli generate-diff -f <first_commit_sha> -l <last_commit_sha>
-```
-
-- To generate the commit history table for the last section, including the correct links:
-
-```bash
-yarn tools:cli generate-cmt-table -r remove-flag-argument-refactoring
-```
-
----
-
 ℹ️ _This repository is part of my Refactoring catalog based on Fowler's book with the same title. Please see [kaiosilveira/refactoring](https://github.com/kaiosilveira/refactoring) for more details._
 
 ---
 
 # Remove Flag Argument
 
-**Formerly: Old name**
+**Formerly: Replace Parameter with Explicity Methods**
 
 <table>
 <thead>
@@ -51,7 +18,16 @@ yarn tools:cli generate-cmt-table -r remove-flag-argument-refactoring
 <td>
 
 ```javascript
-result = initial.code;
+function setDimension(name, value) {
+  if (name === 'height') {
+    this._height = value;
+    return;
+  }
+  if (name === 'width') {
+    this._width = value;
+    return;
+  }
+}
 ```
 
 </td>
@@ -59,10 +35,12 @@ result = initial.code;
 <td>
 
 ```javascript
-result = newCode();
+function setHeight(value) {
+  this._height = value;
+}
 
-function newCode() {
-  return 'new code';
+function setWidth(value) {
+  this._width = value;
 }
 ```
 
@@ -71,46 +49,126 @@ function newCode() {
 </tbody>
 </table>
 
-**Inverse of: [Another refactoring](https://github.com/kaiosilveira/refactoring)**
-
-**Refactoring introduction and motivation** dolore sunt deserunt proident enim excepteur et cillum duis velit dolor. Aute proident laborum officia velit culpa enim occaecat officia sunt aute labore id anim minim. Eu minim esse eiusmod enim nulla Lorem. Enim velit in minim anim anim ad duis aute ipsum voluptate do nulla. Ad tempor sint dolore et ullamco aute nulla irure sunt commodo nulla aliquip.
+Flag arguments are a classic way of allowing the calling code to customize the behavior of a function. Depending on how they are implemented, though, they can put a big overhead on the readers, specially in programming languages without named arguments. This refactoring helps with bringing back clarify by removing the flag.
 
 ## Working example
 
-**Working example general explanation** proident reprehenderit mollit non voluptate ea aliquip ad ipsum anim veniam non nostrud. Cupidatat labore occaecat labore veniam incididunt pariatur elit officia. Aute nisi in nulla non dolor ullamco ut dolore do irure sit nulla incididunt enim. Cupidatat aliquip minim culpa enim. Fugiat occaecat qui nostrud nostrud eu exercitation Lorem pariatur fugiat ea consectetur pariatur irure. Officia dolore veniam duis duis eu eiusmod cupidatat laboris duis ad proident adipisicing. Minim veniam consectetur ut deserunt fugiat id incididunt reprehenderit.
+Our working example is a system that calculates the delivery date of for a shipment. Target dates may vary depending on whether it's a rush delivery or not. The code looks like the following:
+
+```javascript
+export function deliveryDate(anOrder, isRush) {
+  if (isRush) {
+    let deliveryTime;
+    if (['MA', 'CT'].includes(anOrder.deliveryState)) deliveryTime = 1;
+    else if (['NY', 'NH'].includes(anOrder.deliveryState)) deliveryTime = 2;
+    else deliveryTime = 3;
+    return anOrder.placedOn.plusDays(1 + deliveryTime);
+  } else {
+    let deliveryTime;
+    if (['MA', 'CT', 'NY'].includes(anOrder.deliveryState)) deliveryTime = 2;
+    else if (['ME', 'NH'].includes(anOrder.deliveryState)) deliveryTime = 3;
+    else deliveryTime = 4;
+    return anOrder.placedOn.plusDays(2 + deliveryTime);
+  }
+}
+```
+
+The fact that `isRush` is being used as a basis for the code to basically execute two sub-functions stands out. Our goal here is to get rid of this flag by providing clear functions for the calling code to decide which one to use.
 
 ### Test suite
 
-Occaecat et incididunt aliquip ex id dolore. Et excepteur et ea aute culpa fugiat consectetur veniam aliqua. Adipisicing amet reprehenderit elit qui.
+The test suite is exhaustive, going through all possible states with special conditions, but also covering the case where the destination is none of the mentioned ones. A sneak peak of it can be seen below:
 
 ```javascript
-describe('functionBeingRefactored', () => {
-  it('should work', () => {
-    expect(0).toEqual(1);
+describe('deliveryDate', () => {
+  const orderPlacementDate = new ManagedDate();
+
+  describe('for standard orders', () => {
+    it('should return 4 days for an order to be delivered at MA', () => {
+      const anOrder = { deliveryState: 'MA', placedOn: orderPlacementDate };
+      expect(deliveryDate(anOrder, false)).toEqual(anOrder.placedOn.plusDays(4));
+    });
+
+    it('should return 6 days for an order to be delivered at any other state', () => {
+      const anOrder = { deliveryState: 'CA', placedOn: orderPlacementDate };
+      expect(deliveryDate(anOrder, false)).toEqual(anOrder.placedOn.plusDays(6));
+    });
   });
+
+  // much more code...
 });
 ```
 
-Magna ut tempor et ut elit culpa id minim Lorem aliqua laboris aliqua dolor. Irure mollit ad in et enim consequat cillum voluptate et amet esse. Fugiat incididunt ea nulla cupidatat magna enim adipisicing consequat aliquip commodo elit et. Mollit aute irure consequat sunt. Dolor consequat elit voluptate aute duis qui eu do veniam laborum elit quis.
+These tests build a solid foundation so we can safely proceed with the upcoming refactorings.
 
 ### Steps
 
-**Step 1 description** mollit eu nulla mollit irure sint proident sint ipsum deserunt ad consectetur laborum incididunt aliqua. Officia occaecat deserunt in aute veniam sunt ad fugiat culpa sunt velit nulla. Pariatur anim sit minim sit duis mollit.
+We start by applying [decompose conditional](https://github.com/kaiosilveira/decompose-conditional-refactoring/) to `deliveryDate`. This step creates a specific function for each branch of the top-level `if` statement, rendering `deliveryDate` to a simple two-liner:
 
 ```diff
-diff --git a/src/price-order/index.js b/src/price-order/index.js
-@@ -3,6 +3,11 @@
--module.exports = old;
-+module.exports = new;
+@@ -1,15 +1,20 @@
+ export function deliveryDate(anOrder, isRush) {
++  if (isRush) return rushDeliveryDate(anOrder);
++  else return regularDeliveryDate(anOrder);
++}
++
++export function rushDeliveryDate(anOrder) {
++  let deliveryTime;
++  if (['MA', 'CT'].includes(anOrder.deliveryState)) deliveryTime = 1;
++  else if (['NY', 'NH'].includes(anOrder.deliveryState)) deliveryTime = 2;
++  else deliveryTime = 3;
++  return anOrder.placedOn.plusDays(1 + deliveryTime);
++}
++
++export function regularDeliveryDate(anOrder) {
++  let deliveryTime;
++  if (['MA', 'CT', 'NY'].includes(anOrder.deliveryState)) deliveryTime = 2;
++  else if (['ME', 'NH'].includes(anOrder.deliveryState)) deliveryTime = 3;
++  else deliveryTime = 4;
++  return anOrder.placedOn.plusDays(2 + deliveryTime);
+ }
 ```
 
-**Step n description** mollit eu nulla mollit irure sint proident sint ipsum deserunt ad consectetur laborum incididunt aliqua. Officia occaecat deserunt in aute veniam sunt ad fugiat culpa sunt velit nulla. Pariatur anim sit minim sit duis mollit.
+The, we update the first caller to use `rushDeliveryDate` instead of `deliveryDate`:
 
 ```diff
-diff --git a/src/price-order/index.js b/src/price-order/index.js
-@@ -3,6 +3,11 @@
--module.exports = old;
-+module.exports = new;
+@@ -1,9 +1,9 @@
+-import { deliveryDate } from './get-delivery-date/index.js';
++import { rushDeliveryDate } from './get-delivery-date/index.js';
+ import { ManagedDate } from './managed-date/index.js';
+ const anOrder = { deliveryState: 'MA', placedOn: new ManagedDate() };
+ const aShipment = {};
+-aShipment.deliveryDate = deliveryDate(anOrder, true);
++aShipment.deliveryDate = rushDeliveryDate(anOrder);
+ console.log(`Order will be delivered on: ${aShipment.deliveryDate.toString()}`);
+```
+
+and, similarly, we update caller-2 to use `regularDeliveryDate`:
+
+```diff
+@@ -1,9 +1,9 @@
+-import { deliveryDate } from './get-delivery-date/index.js';
++import { regularDeliveryDate } from './get-delivery-date/index.js';
+ import { ManagedDate } from './managed-date/index.js';
+ const anOrder = { deliveryState: 'MA', placedOn: new ManagedDate() };
+ const aShipment = {};
+-aShipment.deliveryDate = deliveryDate(anOrder, false);
++aShipment.deliveryDate = regularDeliveryDate(anOrder);
+ console.log(`Order will be delivered on: ${aShipment.deliveryDate.toString()}`);
+```
+
+Now that all callers are updated, we can safely get rid of `deliveryDate` altogether:
+
+```diff
+@@ -1,8 +1,3 @@
+-export function deliveryDate(anOrder, isRush) {
+-  if (isRush) return rushDeliveryDate(anOrder);
+-  else return regularDeliveryDate(anOrder);
+-}
+-
+ export function rushDeliveryDate(anOrder) {
+   let deliveryTime;
+   if (['MA', 'CT'].includes(anOrder.deliveryState)) deliveryTime = 1;
 ```
 
 And that's it!
@@ -119,10 +177,11 @@ And that's it!
 
 Below there's the commit history for the steps detailed above.
 
-| Commit SHA                                                                  | Message                  |
-| --------------------------------------------------------------------------- | ------------------------ |
-| [cmt-sha-1](https://github.com/kaiosilveira/remove-flag-argument-refactoring/commit-SHA-1) | description of commit #1 |
-| [cmt-sha-2](https://github.com/kaiosilveira/remove-flag-argument-refactoring/commit-SHA-2) | description of commit #2 |
-| [cmt-sha-n](https://github.com/kaiosilveira/remove-flag-argument-refactoring/commit-SHA-n) | description of commit #n |
+| Commit SHA                                                                                                                  | Message                                                                |
+| --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| [7800e31](https://github.com/kaiosilveira/remove-flag-argument-refactoring/commit/7800e319b888da53975420fc10319888e3ea0456) | apply decompose conditional to `deliveryDate`                          |
+| [fda0cf6](https://github.com/kaiosilveira/remove-flag-argument-refactoring/commit/fda0cf6a58a1abbe0c7c2ac1b03656a893629ab6) | update caller-1 to use `rushDeliveryDate` instead of `deliveryDate`    |
+| [40ac413](https://github.com/kaiosilveira/remove-flag-argument-refactoring/commit/40ac413adbd13d0c920dc1188414462f03bba34e) | update caller-2 to use `regularDeliveryDate` instead of `deliveryDate` |
+| [ce89f61](https://github.com/kaiosilveira/remove-flag-argument-refactoring/commit/ce89f61ab91afa49d9e1e4c346f9b7dd6e0b9abb) | delete `deliveryDate`                                                  |
 
 For the full commit history for this project, check the [Commit History tab](https://github.com/kaiosilveira/remove-flag-argument-refactoring/commits/main).
