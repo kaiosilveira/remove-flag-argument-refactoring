@@ -1,8 +1,3 @@
-export function deliveryDate(anOrder, isRush) {
-  if (isRush) return rushDeliveryDate(anOrder);
-  else return regularDeliveryDate(anOrder);
-}
-
 export function rushDeliveryDate(anOrder) {
   let deliveryTime;
   if (['MA', 'CT'].includes(anOrder.deliveryState)) deliveryTime = 1;
